@@ -99,7 +99,7 @@ class JsonPrinter(object):
 
 class FastPrint(object):
     def __init__(self, configpath='.fastprint_config.txt'):
-        self.json = OrderedDict({"calls": OrderedDict()})
+        self.json = OrderedDict({"print": OrderedDict(), "calls": OrderedDict()})
         self.index = JsonIndex(self.json)
         self.configfile = self._get_config(configpath)
         self.counter = 0
@@ -130,11 +130,13 @@ class FastPrint(object):
             return config
 
     # def
-
+    def _next_counter(self):
+        self.counter += 1
+        return str(self.counter-1).zfill(3)
 
     def __str__(self):
         jp = JsonPrinter()
-        jp.jprint(self.json)
+        return jp.jstr(self.json)
         # pp = pprint.PrettyPrinter(indent=4, width=80)
         # pp.pprint(self.json)
 
@@ -177,7 +179,7 @@ class FastPrint(object):
                         argspec = inspect.getfullargspec(func)  # Works only for python 2.x
                         # put together the actual parameter-value pairs that the function receives
                         argsdict = self._construct_args_dict(argspec, wargs, wkwargs)
-                        fname = func.__name__ + str(self.counter); self.counter += 1
+                        fname = self._next_counter() + '_' + func.__name__
                         ix = self.add_dict(fname, {})
                         # go deeper into the fname level
                         self.index.deeper(ix)
@@ -206,6 +208,8 @@ class FastPrint(object):
                             self.configfile.get_bool('print_fn_retval'):
                             self.add_dict_record('retval', str(retval))
                         self.index.higher()
+                        if len(self.index) == 0:
+                            self.index.deeper('print') # return to regular print
                         pass
 
                     entry(*args, **kwargs)  # call wrappers with outer, decorator arguments
@@ -244,13 +248,14 @@ class FastPrint(object):
             elif callable(args[0]):
                 func = args[0]
                 return decorate(func)
-        elif len(args) >= 1 and isinstance(args[0], type):
-            pass
         elif len(args) == 1 and len(kwargs) == 0: # single non-kw argument
-            self.add_record(type(args[0]).__name__, args[0])
+            self.add_record(self._next_counter() + '_' + type(args[0]).__name__, args[0])
+        elif len(args) > 1 and isinstance(args[0], str): # if called with first param as string, all other
+                                                         # params are treated as str format params
+            self.add_record(self._next_counter() + '_' + type(args[0]).__name__, args[0].format(*args[1:],**kwargs))
         elif len(args) == 0 and len(kwargs) >= 1: # single kw arguments
             for key, value in kwargs.items():
-                self.add_record(key, value)
+                self.add_record(self._next_counter() + '_' + key, value)
             # key, value = list(kwargs.items())[0]
             # self.add_record(key, value)
 
@@ -295,7 +300,7 @@ class FastPrint(object):
         # if type(value).__dict__['__str__'] is not object.__str__:
         # if isinstance(value, object):
 
-fp = FastPrint()
+ff = FastPrint()
 
 
 # class A(object):
@@ -303,32 +308,52 @@ fp = FastPrint()
 #         self.par1 = par1
 #
 
-if __name__ == '__main__':
+def example1():
+    ff('abcd')
+    ff(text='ghij')
+    ff('{} + {} = {}',3,5,3+5)
+    ff()
 
-
-    @fp
+def example2():
+    @ff
     def add(a, b):
-        return a+b
+        ff('{} + {} = {}', a, b, a + b)
+        return a + b
 
-    @fp
-    def multi(a,b):
+    @ff
+    def multi(a, b):
         sum = 0
         for i in range(b):
-            sum = add(sum,a)
-
+            sum = add(sum, a)
+        ff('{} * {} = {}', a, b, a * b)
         return sum
 
+    def foo(a, b, c=2, *args, **kwargs):
+        ff(a)
+        ff(b=b)
+        ff(c)
+        ff(args)
+        ff(my_kwargs=kwargs)
 
-    def foo(a,b,c=2,*args,**kwargs):
-        fp(args)
-        fp(kwargs)
+    ff.config(simple=True)
+
+    multi(5, 2)
+    ff(foo)(1, b=2, c=4, unseen1=None, unseen2='abc')
+    foo(1, 2, 3, 4, 5, 6, unseen3=7, unseen4=8)
+
+    ff()
+
+def example3():
+    @ff
+    def foo(a, b=2, *args, **kwargs):
+        ff('{} + {} = {}',a,b,a+b)
+        return a+b
+
+    foo(1, b=3, unseen1=None, unseen2='abc')
+    ff()
 
 
-    fp.config(simple=True)
+if __name__ == '__main__':
+    example3()
 
-    fp(foo)(1,b=2,c=4,unseen1=None,unseen2='abc')
-    foo(1,2,3,4,5,6,unseen3=7,unseen4=8)
-
-
-    fp()
 
