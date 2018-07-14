@@ -9,7 +9,7 @@ toolset of simple python tools that can make config files and debug/print easy.
 
 ```
 from ez.ezprint import ff
-```
+```````
 
 fastprint is a set of tools set to make `print`ing a pleasant experience. `ff` is the main and only object used. the letter `f` is the first key on the left home row. programmers use the right hand a lot, `f` is therefore the key that costs the least amount of energy and focus to press (including the fact that the index finger is the strongest).
 
@@ -17,7 +17,7 @@ fastprint is a set of tools set to make `print`ing a pleasant experience. `ff` i
 
 it can also automatically print tree of function calls and include prints of arguments and return values of each function (and methods of each class) that is decorated by `@ff`. `ff` prints only decorated functions therefore
 
-printing can be done manually `ff('abcd')`, values can be named `ff(text='ghij')`, `ff` can be used as a complete shortcut for string .format, as ff('{} + {} = {}',3,5,3+5) is equivalent to ff('{} + {} = {}'.format(3,5,3+5))
+printing can be done manually `ff('abcd')`, values can be named `ff(text='ghij')`, `ff` can be used as a complete shortcut for `str.format`, as `ff('{} + {} = {}',3,5,3+5)` is equivalent to `ff('{} + {} = {}'.format(3,5,3+5))`
 
 use `ff()` to print out the contents
 
