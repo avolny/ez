@@ -1,5 +1,7 @@
 # ez
-toolset of simple python tools that make config files and
+toolset of simple python tools that can make config files and debug/print easy.
+
+**support for python 2.7 and 3.5**  
 
 
 
@@ -13,7 +15,7 @@ fastprint is a set of tools set to make `print`ing a pleasant experience. `ff` i
 
 `ff` maintains a json dictionary that contains contents of all desired prints outs.
 
-It can also automatically print tree of function calls and include prints of arguments and return values of each function (and methods of each class) that is decorated by `@ff`. `ff` prints only decorated functions therefore
+it can also automatically print tree of function calls and include prints of arguments and return values of each function (and methods of each class) that is decorated by `@ff`. `ff` prints only decorated functions therefore
 
 printing can be done manually `ff('abcd')`, values can be named `ff(text='ghij')`, `ff` can be used as a complete shortcut for string .format, as ff('{} + {} = {}',3,5,3+5) is equivalent to ff('{} + {} = {}'.format(3,5,3+5))
 
@@ -46,7 +48,7 @@ when writing and debugging code, one often finds the need to print function para
 
 `ff` can be used as a decorator for both functions and classes (and their methods), simply as `@ff`, this automatically tracks all calls of decorated function (or method from decorated class) and prints argument names with values of the call, return values and all the prints that happened during the call are included in dictionary that contains the sub-tree of the call hierarchy.
 
-This works in addition to all introduced concepts, while all the prints that happen during a call are included in the hierarchical structure. you can clearly see what was printed in what sub-call of what sub-tree of all the calls, you have to do very little for it. just include `@ff` before your function or class.
+this works in addition to all introduced concepts, while all the prints that happen during a call are included in the hierarchical structure. you can clearly see what was printed in what sub-call of what sub-tree of all the calls, you have to do very little for it. just include `@ff` before your function or class.
 
 when working on something bigger, decorating all functions or classes would blow up your print output so it becomes desirable to inspect and print just the functions you are interested in. for that use `ff` to decorate function just for a single call. `ff(myfunc)(arg1,arg2,arg3)` is equivalent to defining `myfunc` with the `@ff` decorator and calling it. also, `@ff` maintains structure if you use it only for some methods in the call tree.
 

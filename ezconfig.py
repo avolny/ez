@@ -1,3 +1,4 @@
+import enum
 from enum import Enum
 import numpy as np
 
@@ -113,7 +114,7 @@ class ConfigFile(object):
             if not field.used:
                 print('WARNING: config field {} was not used once.'.format(field.name))
 
-    def print(self):
+    def config_print(self):
         print('-' * 60)
         print('ConfigFile loaded from paths:')
         for path in self.paths:
@@ -151,7 +152,7 @@ class ConfigField(object):
 
     def parse(self, parsestring):
         parts = parsestring.split(';')
-        assert len(parts) >= 3, print('each config field string has to have 3 parts. [{}]'.format(parsestring))
+        assert len(parts) >= 3, 'each config field string has to have 3 parts. [{}]'.format(parsestring)
         self.name = parts[0]
         self.dtype = ConfigFieldDtype(parts[1])
         split = parts[2].split('#')

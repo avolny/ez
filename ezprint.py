@@ -2,6 +2,7 @@ import pprint
 from collections import OrderedDict
 from ezconfig import ConfigFile
 import inspect
+import types
 
 class JsonIndex(object):
     def __init__(self, json, reset=True):
@@ -99,10 +100,17 @@ class JsonPrinter(object):
 
 class FastPrint(object):
     def __init__(self, configpath='.fastprint_config.txt'):
+        self.configfile = self._get_config(configpath)
+        self.clear()
+
+    def clear(self):
         self.json = OrderedDict({"print": OrderedDict(), "calls": OrderedDict()})
         self.index = JsonIndex(self.json)
-        self.configfile = self._get_config(configpath)
         self.counter = 0
+
+    def hline(self, ncols=80, nrows=1):
+        for _ in range(nrows):
+            print('-'*ncols)
 
     def config(self, **kwargs):
         for key,val in kwargs.items():
@@ -126,6 +134,7 @@ class FastPrint(object):
             config.add_bool('print_fn_retval', True, comment='set false when you don\' want to print returned value for each fn call')
             config.add_int('max_depth', 10, comment='Set the maximum print depth')
             config.add_bool('simple', False, comment='Set true when you want simple function print omitting args and retvals')
+            config.add_bool('capped_func_names', True, comment='Set true to capitalize all function names for easier readability')
             config.save(path)
             return config
 
@@ -145,6 +154,8 @@ class FastPrint(object):
         # because python raises exception on calls with invalid
         # arguments implicitly
         args, varargs, varkw, defaults = argspec[:4]
+        if args[0] == 'self':
+            args = args[1:]
         defaults = defaults if defaults is not None else []
         di = len(args) - len(defaults)
 
@@ -170,16 +181,22 @@ class FastPrint(object):
         if len(args) == len(kwargs) == 0: # p() ... print contents of fast print object
             print(self.__str__())
         elif len(args) >= 1 and (callable(args[0]) or isinstance(args[0], type)): # decorator case
-            def decorate(func):
+            def decorate(func, instance=None):
                 def wrapper(*wargs, **wkwargs):  # function wrapper that replaces the decorated function
                     def entry(*args, **kwargs):
                         self.jump_to_call() # make sure the correct index is in place
 
-                        # inspection for argument names and default values
-                        argspec = inspect.getfullargspec(func)  # Works only for python 2.x
+                        import sys
+                        if sys.version_info >= (3,0):
+                            # inspection for argument names and default values
+                            argspec = inspect.getfullargspec(func)  # Works only for python 2.x
                         # put together the actual parameter-value pairs that the function receives
+                        else:
+                            argspec = inspect.getargspec(func)
+
                         argsdict = self._construct_args_dict(argspec, wargs, wkwargs)
-                        fname = self._next_counter() + '_' + func.__name__
+                        fname = func.__name__.upper() if self.configfile.get_bool('capped_func_names') else func.__name__
+                        fname = self._next_counter() + '_' + fname
                         ix = self.add_dict(fname, {})
                         # go deeper into the fname level
                         self.index.deeper(ix)
@@ -193,6 +210,9 @@ class FastPrint(object):
                             ix = self.add_dict('calls', {})
                             # go deeper into the "calls" level
                             self.index.deeper(ix)
+
+                        # return argspec[0][0] if len(argspec[0]) > 0 else None
+
 
                     def exit(*args, **kwargs):
                         retval = [args[0]]
@@ -212,18 +232,40 @@ class FastPrint(object):
                             self.index.deeper('print') # return to regular print
                         pass
 
+
+
                     entry(*args, **kwargs)  # call wrappers with outer, decorator arguments
-                    retval = func(*wargs, **wkwargs)
+
+                    # when we call a method of the wrapped class for the first time, the NewCls.__getattr__ is called,
+                    # however, the wrapped function by default receives self instance of the wrapped class, so any
+                    # calls that happen inside a wrapped class' methods don't get wrapped, because in order to get wrapped
+                    # the self instance that the wrapped class' method receives upon call has to be the NewCls class instance.
+                    # therefore, we call the method from the class object itself providing our own instance
+                    if instance is not None:
+                        retval = object.__getattribute__(func.__self__.__class__, func.__name__)(instance, *wargs, **wkwargs)
+                    else:
+                        retval = func(*wargs, **wkwargs) #
                     exit(*([retval] + list(args)), **kwargs)  # call wrappers with outer, decorator arguments
                     return retval
 
                 return wrapper if self.configfile.get_bool('use_function_wrappers') else func
+
+            # class _C(object):
+            #     def _m(self): pass
+            # ClassType = type(_C)
+
+            def _f():
+                pass
+            FunctionType = type(_f)
+
             if isinstance(args[0], type): # class wrapper
-                Cls = args[0]
                 class NewCls(object):
                     # CODE SOURCE: https://www.codementor.io/sheena/advanced-use-python-decorators-class-function-du107nxsv
-                    def __init__(self, *args, **kwargs):
-                        self.oInstance = Cls(*args, **kwargs)
+                    def __init__(self, *cargs, **ckwargs):
+                        self._oInstance = args[0](*cargs, **ckwargs)
+                        object.__getattribute__(self, '_oInstance').__setattr__('_NewCls_self', self)
+
+
 
                     def __getattribute__(self, s):
                         """
@@ -232,20 +274,26 @@ class FastPrint(object):
                         instance of the decorated class). If it manages to fetch the attribute from self.oInstance, and
                         the attribute is an instance method then `time_this` is applied.
                         """
+                        # print '__getattribute__', str(self), s
+
+                        if s == '__getattribute__':
+                            return object.__getattribute__(self, '__getattribute__')
+
                         try:
                             x = super(NewCls, self).__getattribute__(s)
                         except AttributeError:
                             pass
                         else:
                             return x
-                        x = self.oInstance.__getattribute__(s)
-                        if type(x) == type(self.__init__):  # it is an instance method
-                            return decorate(x)  # this is equivalent of just decorating the method with time_this
+                        x = object.__getattribute__(self, '_oInstance').__getattribute__(s)
+                        if type(x) == type(object.__getattribute__(self, '__init__')):  # it is an instance method
+                            return decorate(x, self)  # this is equivalent of just decorating the method with decorate
                         else:
                             return x
 
                 return NewCls # return wrapped class
-            elif callable(args[0]):
+
+            elif isinstance(args[0], FunctionType):
                 func = args[0]
                 return decorate(func)
         elif len(args) == 1 and len(kwargs) == 0: # single non-kw argument
@@ -300,6 +348,7 @@ class FastPrint(object):
         # if type(value).__dict__['__str__'] is not object.__str__:
         # if isinstance(value, object):
 
+
 ff = FastPrint()
 
 
@@ -349,11 +398,50 @@ def example3():
         ff('{} + {} = {}',a,b,a+b)
         return a+b
 
+    ff.config(simple=False)
+
     foo(1, b=3, unseen1=None, unseen2='abc')
     ff()
 
 
+
+def example4():
+    @ff
+    class Foo(object):
+        # def __init__(self):
+        #     pass
+
+        def multi(self, a, b):
+            # print type(self)
+            sum = 0
+            for i in range(b):
+                sum = self.add(sum, a)
+            ff('{} * {} = {}', a, b, a * b)
+            return sum
+
+        def add(self, a, b):
+            # print type(self)
+            ff('{} + {} = {}', a, b, a + b)
+            return a + b
+
+    a = Foo()
+    a.multi(5,2)
+    a.add(4,3)
+
+    ff.config(simple=True)
+
+    ff()
+
 if __name__ == '__main__':
+    example1()
+    ff.clear()
+    ff.hline()
+    example2()
+    ff.clear()
+    ff.hline()
     example3()
+    ff.clear()
+    ff.hline()
+    example4()
 
 
